@@ -1,14 +1,16 @@
 #include <iostream>
 #include <ncurses.h>
 #include <unistd.h>
+#include <vector>
 using namespace std;
 
 // Dimensiones del tablero
-const int width = 21;
+const int width = 20;
 const int height = 21;
+int currentFood;
 
 // Posición del Pacman
-int x, y;
+int pacX, pacY;
 
 // Dirección de movimiento del Pacman
 enum Direction { STOP = 0, LEFT, RIGHT, UP, DOWN };
@@ -43,13 +45,12 @@ char board[height][width] = {
 };
 
 // Posición de los fantasmas
-int ghost1_x, ghost1_y;
-int ghost2_x, ghost2_y;
-int ghost3_x, ghost3_y;
+const int numGhosts=3;
+vector<int>ghostPos(2*numGhosts);
 
 // Dirección de movimiento de los fantasmas
 enum GhostDirection { G_LEFT, G_RIGHT, G_UP, G_DOWN };
-GhostDirection ghost1_dir, ghost2_dir, ghost3_dir;
+vector<GhostDirection>ghostDir(numGhosts);
 
 // Inicialización
 void Setup()
@@ -74,26 +75,36 @@ void Setup()
             }
         }
     }*/
-    x=10; y=1;
+    pacX=10; pacY=1;
 
     // Inicializar la posición y dirección de los fantasmas
-    ghost1_x = 1;
-    ghost1_y = 1;
-    ghost1_dir = G_DOWN;
+    ghostPos[0]=1;
+    ghostPos[1]=1;
+    ghostDir[0]=G_DOWN;
 
-    ghost2_x = width - 2;
-    ghost2_y = 1;
-    ghost2_dir = G_DOWN;
+    ghostPos[2]=width-3;
+    ghostPos[3]=1;
+    ghostDir[1]=G_DOWN;
 
-    ghost3_x = width - 2;
-    ghost3_y = height - 2;
-    ghost3_dir = G_UP;
+    ghostPos[4]=width-3;
+    ghostPos[5]=height-2;
+    ghostDir[2]=G_UP;
 
+    currentFood = 0;
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            if (board[y][x] == '.') {
+                currentFood++;
+            }
+        }
+    }
+    
     srand(time(NULL));  // Inicializar la semilla aleatoria
 }
 
 // Liberar recursos al finalizar
-void Terminate()
+void FreeResources()
 {
     endwin();  // Finalizar ncurses
 }
@@ -106,7 +117,7 @@ void Draw()
 
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
-            if (i == y && j == x){
+            if (i == pacY && j == pacX){
                 init_pair(1, COLOR_YELLOW, COLOR_BLACK);
                 attron(COLOR_PAIR(1));
                 mvprintw(i, j, "C");  // Dibujar el Pacman
@@ -120,21 +131,22 @@ void Draw()
     // Dibujar a los fantasmas
     init_pair(2, COLOR_RED, COLOR_BLACK);
     attron(COLOR_PAIR(2));
-    mvprintw(ghost1_y, ghost1_x, "G");
+    mvprintw(ghostPos[1], ghostPos[0], "G");
     attroff(COLOR_PAIR(2));
 
     init_pair(3, COLOR_BLUE, COLOR_BLACK);
     attron(COLOR_PAIR(3));
-    mvprintw(ghost2_y, ghost2_x, "G");
+    mvprintw(ghostPos[3], ghostPos[2], "G");
     attroff(COLOR_PAIR(3));
 
     init_pair(4, COLOR_GREEN, COLOR_BLACK);
     attron(COLOR_PAIR(4));
-    mvprintw(ghost3_y, ghost3_x, "G");
+    mvprintw(ghostPos[5], ghostPos[4], "G");
     attroff(COLOR_PAIR(4));
 
 
-    mvprintw(height + 1, 0, "Use las flechas para moverse");
+    mvprintw(height + 1, 0, "Use arrow buttons to move");
+    mvprintw(height + 2, 0, "Press q to quit");
     refresh();
 }
 
@@ -142,84 +154,109 @@ void Draw()
 void UpdateGhosts()
 {
     // Fantasma 1
-    int ghost1_new_x = ghost1_x;
-    int ghost1_new_y = ghost1_y;
+    std::vector<GhostDirection> possible_dirs;
+    for(int i=0;i<numGhosts;i++){
+        int ghost1_new_x = ghostPos[2*i];
+        int ghost1_new_y = ghostPos[2*i+1];
 
-    // Generar dirección aleatoria para el Fantasma 1
-    int ghost1_random = rand() % 4;
-    switch (ghost1_random) {
-        case 0:
-            ghost1_new_x--;
-            break;
-        case 1:
-            ghost1_new_x++;
-            break;
-        case 2:
-            ghost1_new_y--;
-            break;
-        case 3:
-            ghost1_new_y++;
-            break;
-    }
+        switch (ghostDir[i]) {
+                case G_LEFT:
+                    if (board[ghost1_new_y][ghost1_new_x - 1] != '#') {
+                        possible_dirs.push_back(G_LEFT);
+                    }
+                    if (board[ghost1_new_y - 1][ghost1_new_x] != '#') {
+                        possible_dirs.push_back(G_UP);
+                    }
+                    if (board[ghost1_new_y + 1][ghost1_new_x] != '#') {
+                        possible_dirs.push_back(G_DOWN);
+                    }
+                    break;
+                case G_RIGHT:
+                    if (board[ghost1_new_y][ghost1_new_x + 1] != '#') {
+                        possible_dirs.push_back(G_RIGHT);
+                    }  
+                    if (board[ghost1_new_y - 1][ghost1_new_x] != '#') {
+                        possible_dirs.push_back(G_UP);
+                    }
+                    if (board[ghost1_new_y + 1][ghost1_new_x] != '#') {
+                        possible_dirs.push_back(G_DOWN);
+                    }
+                    break;
+                case G_UP:
+                    if (board[ghost1_new_y - 1][ghost1_new_x] != '#') {
+                        possible_dirs.push_back(G_UP);
+                    }
+                    if (board[ghost1_new_y][ghost1_new_x - 1] != '#') {
+                        possible_dirs.push_back(G_LEFT);
+                    }
+                    if (board[ghost1_new_y][ghost1_new_x + 1] != '#') {
+                        possible_dirs.push_back(G_RIGHT);
+                    }
+                    break;
+                case G_DOWN:
+                    if (board[ghost1_new_y + 1][ghost1_new_x] != '#') {
+                        possible_dirs.push_back(G_DOWN);
+                    }
+                    if (board[ghost1_new_y][ghost1_new_x - 1] != '#') {
+                        possible_dirs.push_back(G_LEFT);
+                    }
+                    if (board[ghost1_new_y][ghost1_new_x + 1] != '#') {
+                        possible_dirs.push_back(G_RIGHT);
+                    }
+                    break;
+                default:
+                    break;
+            }
 
-    // Comprobar si el Fantasma 1 puede moverse a la nueva posición
-    if (board[ghost1_new_y][ghost1_new_x] != '#') {
-        ghost1_x = ghost1_new_x;
-        ghost1_y = ghost1_new_y;
-    }
+        // Si hay direcciones disponibles, generar una dirección aleatoria entre las posibles
+        if (!possible_dirs.empty()) {
+            int random_index = rand() % possible_dirs.size();
+            GhostDirection new_dir = possible_dirs[random_index];
 
-    // Fantasma 2
-    int ghost2_new_x = ghost2_x;
-    int ghost2_new_y = ghost2_y;
+            switch (new_dir) {
+                case G_LEFT:
+                    ghost1_new_x--;
+                    break;
+                case G_RIGHT:
+                    ghost1_new_x++;
+                    break;
+                case G_UP:
+                    ghost1_new_y--;
+                    break;
+                case G_DOWN:
+                    ghost1_new_y++;
+                    break;
+                default:
+                    break;
+            }
+            ghostDir[i]=new_dir;
+        }
+        else{
+            switch (ghostDir[i]) {
+                case G_LEFT:
+                    ghost1_new_x++;
+                    ghostDir[i]=G_RIGHT;
+                    break;
+                case G_RIGHT:
+                    ghost1_new_x--;
+                    ghostDir[i]=G_LEFT;
+                    break;
+                case G_UP:
+                    ghost1_new_y++;
+                    ghostDir[i]=G_DOWN;
+                    break;
+                case G_DOWN:
+                    ghost1_new_y--;
+                    ghostDir[i]=G_UP;
+                    break;
+                default:
+                    break;
+            }
+        }
 
-    // Generar dirección aleatoria para el Fantasma 2
-    int ghost2_random = rand() % 4;
-    switch (ghost2_random) {
-        case 0:
-            ghost2_new_x--;
-            break;
-        case 1:
-            ghost2_new_x++;
-            break;
-        case 2:
-            ghost2_new_y--;
-            break;
-        case 3:
-            ghost2_new_y++;
-            break;
-    }
-
-    // Comprobar si el Fantasma 2 puede moverse a la nueva posición
-    if (board[ghost2_new_y][ghost2_new_x] != '#') {
-        ghost2_x = ghost2_new_x;
-        ghost2_y = ghost2_new_y;
-    }
-
-    // Fantasma 3
-    int ghost3_new_x = ghost3_x;
-    int ghost3_new_y = ghost3_y;
-
-    // Generar dirección aleatoria para el Fantasma 3
-    int ghost3_random = rand() % 4;
-    switch (ghost3_random) {
-        case 0:
-            ghost3_new_x--;
-            break;
-        case 1:
-            ghost3_new_x++;
-            break;
-        case 2:
-            ghost3_new_y--;
-            break;
-        case 3:
-            ghost3_new_y++;
-            break;
-    }
-
-    // Comprobar si el Fantasma 3 puede moverse a la nueva posición
-    if (board[ghost3_new_y][ghost3_new_x] != '#') {
-        ghost3_x = ghost3_new_x;
-        ghost3_y = ghost3_new_y;
+        ghostPos[2*i] = ghost1_new_x;
+        ghostPos[2*i+1] = ghost1_new_y;
+        possible_dirs.clear();
     }
 }
 
@@ -243,53 +280,60 @@ void Input()
         case 'q':
             gameOver = true;
             break;
+        default:
+            break;
     }
 }
 
 // Actualizar la posición del Pacman
 void UpdatePacman()
 {
-    int nextX = x;
-    int nextY = y;
+    int nextX = pacX;
+    int nextY = pacY;
 
     switch (dir) {
         case LEFT:
-            nextX = x - 1;
+            nextX = pacX - 1;
             break;
         case RIGHT:
-            nextX = x + 1;
+            nextX = pacX + 1;
             break;
         case UP:
-            nextY = y - 1;
+            nextY = pacY - 1;
             break;
         case DOWN:
-            nextY = y + 1;
+            nextY = pacY + 1;
+            break;
+        default:
             break;
     }
 
     // Verificar si la siguiente posición es un camino despejado
     if (board[nextY][nextX] != '#') {
-        x = nextX;
-        y = nextY;
+        pacX = nextX;
+        pacY = nextY;
     }
 
-    // Verificar si se alcanzó la meta (punto de salida)
-    /*if (board[y][x] == '.') {
-        gameOver = true;
-    }*/
+    // Actualizar la comida
+    if(board[pacY][pacX]=='.'){
+        currentFood--;
+        board[pacY][pacX]=' ';
+    }
+
 }
 
 // Verificar si se ha alcanzado una condición de finalización del juego
 void CheckGameOver()
 {
     // Verificar si el Pacman ha sido atrapado por un fantasma
-    if (x == ghost1_x && y == ghost1_y) {
-        gameOver = true;
-    } else if (x == ghost2_x && y == ghost2_y) {
-        gameOver = true;
-    } else if (x == ghost3_x && y == ghost3_y) {
-        gameOver = true;
+    for(int i=0;i<numGhosts;i++){
+        if (pacX == ghostPos[2*i] && pacY == ghostPos[2*i+1]){
+            //gameOver=true;
+            break;
+        }
     }
+    // Verificar si no queda comida
+    if(currentFood<=0)gameOver=true;
 }
 
 
@@ -306,7 +350,7 @@ int main()
         usleep(200000);  // Retardo de 100 ms
     }
 
-    Terminate();
+    FreeResources();
 
     return 0;
 }

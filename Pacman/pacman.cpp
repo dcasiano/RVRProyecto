@@ -2,6 +2,10 @@
 #include <ncurses.h>
 #include <unistd.h>
 #include <vector>
+
+#include "Player.h"
+#include "Socket.h"
+
 using namespace std;
 
 // Dimensiones del tablero
@@ -10,11 +14,12 @@ const int height = 21;
 int currentFood;
 
 // Posición del Pacman
-int pacX, pacY;
+//int pacX, pacY;
+Player pacman("Pacman",10,1);
 
 // Dirección de movimiento del Pacman
-enum Direction { STOP = 0, LEFT, RIGHT, UP, DOWN };
-Direction dir;
+//enum Direction { STOP = 0, LEFT, RIGHT, UP, DOWN };
+//Direction dir;
 
 // Estado del juego
 bool gameOver;
@@ -52,6 +57,16 @@ vector<int>ghostPos(2*numGhosts);
 enum GhostDirection { G_LEFT, G_RIGHT, G_UP, G_DOWN };
 vector<GhostDirection>ghostDir(numGhosts);
 
+
+
+
+// Metodos
+
+void StartServer(const char * s, const char * p){
+    Socket socket(s,p);
+    socket.bind();
+}
+
 // Inicialización
 void Setup()
 {
@@ -63,7 +78,8 @@ void Setup()
     nodelay(stdscr, TRUE); // No esperar a la entrada del usuario
 
     gameOver = false;
-    dir = STOP;
+    //dir = STOP;
+    pacman.dir=Player::Direction::STOP;
 
     // Encontrar la posición inicial del Pacman en el tablero
     /*for (int i = 0; i < height; i++) {
@@ -75,7 +91,7 @@ void Setup()
             }
         }
     }*/
-    pacX=10; pacY=1;
+    //pacX=10; pacY=1;
 
     // Inicializar la posición y dirección de los fantasmas
     ghostPos[0]=1;
@@ -117,7 +133,7 @@ void Draw()
 
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
-            if (i == pacY && j == pacX){
+            if (i == pacman.y && j == pacman.x){
                 init_pair(1, COLOR_YELLOW, COLOR_BLACK);
                 attron(COLOR_PAIR(1));
                 mvprintw(i, j, "C");  // Dibujar el Pacman
@@ -266,16 +282,16 @@ void Input()
     int key = getch();
     switch (key) {
         case KEY_LEFT:
-            dir = LEFT;
+            pacman.dir = Player::Direction::LEFT;
             break;
         case KEY_RIGHT:
-            dir = RIGHT;
+            pacman.dir = Player::Direction::RIGHT;
             break;
         case KEY_UP:
-            dir = UP;
+            pacman.dir = Player::Direction::UP;
             break;
         case KEY_DOWN:
-            dir = DOWN;
+            pacman.dir = Player::Direction::DOWN;
             break;
         case 'q':
             gameOver = true;
@@ -288,21 +304,21 @@ void Input()
 // Actualizar la posición del Pacman
 void UpdatePacman()
 {
-    int nextX = pacX;
-    int nextY = pacY;
+    int nextX = pacman.x;
+    int nextY = pacman.y;
 
-    switch (dir) {
-        case LEFT:
-            nextX = pacX - 1;
+    switch (pacman.dir) {
+        case Player::Direction::LEFT:
+            nextX = pacman.x - 1;
             break;
-        case RIGHT:
-            nextX = pacX + 1;
+        case Player::Direction::RIGHT:
+            nextX = pacman.x + 1;
             break;
-        case UP:
-            nextY = pacY - 1;
+        case Player::Direction::UP:
+            nextY = pacman.y - 1;
             break;
-        case DOWN:
-            nextY = pacY + 1;
+        case Player::Direction::DOWN:
+            nextY = pacman.y + 1;
             break;
         default:
             break;
@@ -310,14 +326,14 @@ void UpdatePacman()
 
     // Verificar si la siguiente posición es un camino despejado
     if (board[nextY][nextX] != '#') {
-        pacX = nextX;
-        pacY = nextY;
+        pacman.x = nextX;
+        pacman.y = nextY;
     }
 
     // Actualizar la comida
-    if(board[pacY][pacX]=='.'){
+    if(board[pacman.y][pacman.x]=='.'){
         currentFood--;
-        board[pacY][pacX]=' ';
+        board[pacman.y][pacman.x]=' ';
     }
 
 }
@@ -327,7 +343,7 @@ void CheckGameOver()
 {
     // Verificar si el Pacman ha sido atrapado por un fantasma
     for(int i=0;i<numGhosts;i++){
-        if (pacX == ghostPos[2*i] && pacY == ghostPos[2*i+1]){
+        if (pacman.x == ghostPos[2*i] && pacman.y == ghostPos[2*i+1]){
             //gameOver=true;
             break;
         }
@@ -337,9 +353,13 @@ void CheckGameOver()
 }
 
 
-int main()
+int main(int argc, char** argv)
 {
-    Setup();
+    if (argc >= 4 && strcmp(argv[1], "s") == 0) {
+        StartServer(argv[2],argv[3]);
+    }
+
+    //Setup();
 
     while (!gameOver) {
         Draw();
@@ -347,7 +367,7 @@ int main()
         UpdatePacman();
         UpdateGhosts();
         CheckGameOver();
-        usleep(200000);  // Retardo de 100 ms
+        usleep(200000);  // Retardo de 200 ms
     }
 
     FreeResources();

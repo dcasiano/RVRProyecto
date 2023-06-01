@@ -19,8 +19,8 @@ int currentFood;
 
 // Posición del Pacman
 //int pacX, pacY;
-Player* pacmanServer;
-Player* pacmanClient;
+Player* pacmanLocal;
+Player* pacmanRemote;
 
 // Dirección de movimiento del Pacman
 //enum Direction { STOP = 0, LEFT, RIGHT, UP, DOWN };
@@ -63,7 +63,7 @@ enum GhostDirection { G_LEFT, G_RIGHT, G_UP, G_DOWN };
 vector<GhostDirection>ghostDir(numGhosts);
 
 // TODO cambiar a SERVER_MESSAGE_SIZE = 8 * sizeof(int16_t) + 80; para incluir fantasmas
-const size_t SERVER_MESSAGE_SIZE = 2 * sizeof(int16_t) + 80; // pos jugador server y 3 fantasmas + 80 caracteres de nombre
+const size_t SERVER_MESSAGE_SIZE = 8 * sizeof(int16_t) + 80; // pos jugador server y 3 fantasmas + 80 caracteres de nombre
 const size_t CLIENT_MESSAGE_SIZE = 2 * sizeof(int16_t) + 80; // pos jugador client + 80 caracteres de nombre
 
 
@@ -91,7 +91,7 @@ void Setup()
 
     gameOver = false;
     //dir = STOP;
-    pacmanServer->dir=Player::Direction::STOP;
+    pacmanLocal->dir=Player::Direction::STOP;
 
     // Encontrar la posición inicial del Pacman en el tablero
     /*for (int i = 0; i < height; i++) {
@@ -145,14 +145,14 @@ void Draw()
 
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
-            if (i == pacmanServer->y && j == pacmanServer->x){
+            if (i == pacmanLocal->y && j == pacmanLocal->x){
                 init_pair(1, COLOR_YELLOW, COLOR_BLACK);
                 attron(COLOR_PAIR(1));
                 mvprintw(i, j, "C");  // Dibujar el Pacman
                 //mvaddch(i, j, 'C');
                 attroff(COLOR_PAIR(1));
             }
-            else if (i == pacmanClient->y && j == pacmanClient->x){
+            else if (i == pacmanRemote->y && j == pacmanRemote->x){
                 init_pair(5, COLOR_MAGENTA, COLOR_BLACK);
                 attron(COLOR_PAIR(5));
                 mvprintw(i, j, "C");  // Dibujar el Pacman
@@ -295,25 +295,21 @@ void UpdateGhosts()
 }
 
 // Entrada del usuario
-void Input(bool isServer)
+void Input()
 {
     int key = getch();
     switch (key) {
         case KEY_LEFT:
-            if(isServer)pacmanServer->dir = Player::Direction::LEFT;
-            else pacmanClient->dir = Player::Direction::LEFT;
+            pacmanLocal->dir = Player::Direction::LEFT;
             break;
         case KEY_RIGHT:
-            if(isServer)pacmanServer->dir = Player::Direction::RIGHT;
-            else pacmanClient->dir = Player::Direction::RIGHT;
+            pacmanLocal->dir = Player::Direction::RIGHT;
             break;
         case KEY_UP:
-            if(isServer)pacmanServer->dir = Player::Direction::UP;
-            else pacmanClient->dir = Player::Direction::UP;
+            pacmanLocal->dir = Player::Direction::UP;
             break;
         case KEY_DOWN:
-            if(isServer)pacmanServer->dir = Player::Direction::DOWN;
-            else pacmanClient->dir = Player::Direction::DOWN;
+            pacmanLocal->dir = Player::Direction::DOWN;
             break;
         case 'q':
             gameOver = true;
@@ -324,23 +320,23 @@ void Input(bool isServer)
 }
 
 // Actualizar la posición del Pacman
-void UpdatePacmanServer()
+void UpdatePacman()
 {
-    int nextX = pacmanServer->x;
-    int nextY = pacmanServer->y;
+    int nextX = pacmanLocal->x;
+    int nextY = pacmanLocal->y;
 
-    switch (pacmanServer->dir) {
+    switch (pacmanLocal->dir) {
         case Player::Direction::LEFT:
-            nextX = pacmanServer->x - 1;
+            nextX = pacmanLocal->x - 1;
             break;
         case Player::Direction::RIGHT:
-            nextX = pacmanServer->x + 1;
+            nextX = pacmanLocal->x + 1;
             break;
         case Player::Direction::UP:
-            nextY = pacmanServer->y - 1;
+            nextY = pacmanLocal->y - 1;
             break;
         case Player::Direction::DOWN:
-            nextY = pacmanServer->y + 1;
+            nextY = pacmanLocal->y + 1;
             break;
         default:
             break;
@@ -348,67 +344,29 @@ void UpdatePacmanServer()
 
     // Verificar si la siguiente posición es un camino despejado
     if (board[nextY][nextX] != '#') {
-        pacmanServer->x = nextX;
-        pacmanServer->y = nextY;
+        pacmanLocal->x = nextX;
+        pacmanLocal->y = nextY;
     }
 
     // Actualizar la comida
-    if(board[pacmanServer->y][pacmanServer->x]=='.'){
+    if(board[pacmanLocal->y][pacmanLocal->x]=='.'){
         currentFood--;
-        board[pacmanServer->y][pacmanServer->x]=' ';
+        board[pacmanLocal->y][pacmanLocal->x]=' ';
     }
-    if(board[pacmanClient->y][pacmanClient->x]=='.'){
+    if(board[pacmanRemote->y][pacmanRemote->x]=='.'){
         currentFood--;
-        board[pacmanClient->y][pacmanClient->x]=' ';
+        board[pacmanRemote->y][pacmanRemote->x]=' ';
     }
 
 }
-void UpdatePacmanClient()
-{
-    int nextX = pacmanClient->x;
-    int nextY = pacmanClient->y;
 
-    switch (pacmanClient->dir) {
-        case Player::Direction::LEFT:
-            nextX = pacmanClient->x - 1;
-            break;
-        case Player::Direction::RIGHT:
-            nextX = pacmanClient->x + 1;
-            break;
-        case Player::Direction::UP:
-            nextY = pacmanClient->y - 1;
-            break;
-        case Player::Direction::DOWN:
-            nextY = pacmanClient->y + 1;
-            break;
-        default:
-            break;
-    }
-
-    // Verificar si la siguiente posición es un camino despejado
-    if (board[nextY][nextX] != '#') {
-        pacmanClient->x = nextX;
-        pacmanClient->y = nextY;
-    }
-
-    // Actualizar la comida
-    if(board[pacmanServer->y][pacmanServer->x]=='.'){
-        currentFood--;
-        board[pacmanServer->y][pacmanServer->x]=' ';
-    }
-    if(board[pacmanClient->y][pacmanClient->x]=='.'){
-        currentFood--;
-        board[pacmanClient->y][pacmanClient->x]=' ';
-    }
-
-}
 
 // Verificar si se ha alcanzado una condición de finalización del juego
 void CheckGameOver()
 {
     // Verificar si el Pacman ha sido atrapado por un fantasma
     for(int i=0;i<numGhosts;i++){
-        if (pacmanServer->x == ghostPos[2*i] && pacmanServer->y == ghostPos[2*i+1]){
+        if (pacmanLocal->x == ghostPos[2*i] && pacmanLocal->y == ghostPos[2*i+1]){
             //gameOver=true;
             break;
         }
@@ -417,29 +375,42 @@ void CheckGameOver()
     if(currentFood<=0)gameOver=true;
 }
 
-void PrepareClientData(char* &buffer){
-    pacmanClient->to_bin();
-    memcpy(buffer,pacmanClient->data(),CLIENT_MESSAGE_SIZE);
+/*void PrepareClientData(char* &buffer){
+    pacmanLocal->to_bin();
+    memcpy(buffer,pacmanLocal->data(),REMOTE_MESSAGE_SIZE);
 }
 void PrepareServerData(char* &buffer){
-    pacmanServer->to_bin();
-    memcpy(buffer,pacmanServer->data(),CLIENT_MESSAGE_SIZE);
+    pacmanLocal->to_bin();
+    memcpy(buffer,pacmanLocal->data(),REMOTE_MESSAGE_SIZE);
+}*/
+
+void SendDataToClient(int sd){
+    char buffer[SERVER_MESSAGE_SIZE];
+    pacmanLocal->to_bin();
+    memcpy(buffer,pacmanLocal->data(),SERVER_MESSAGE_SIZE);
+    send(sd,buffer,SERVER_MESSAGE_SIZE,0);
+}
+void SendDataToServer(int sd){
+    char buffer[CLIENT_MESSAGE_SIZE];
+    pacmanLocal->to_bin();
+    memcpy(buffer,pacmanLocal->data(),CLIENT_MESSAGE_SIZE);
+    send(sd,buffer,CLIENT_MESSAGE_SIZE,0);
 }
 // Procesa los datos en el servidor recibidos por el cliente
 void ProcessClientData(char* buffer, ssize_t bytes){
     if(bytes<=0)return;
-    pacmanClient->from_bin(buffer);
+    pacmanRemote->from_bin(buffer);
 }
 // Procesa los datos en el cliente recibidos por el servidor
 void ProcessServerData(char* buffer, ssize_t bytes){
     if(bytes<=0)return;
-    pacmanServer->from_bin(buffer);
+    pacmanRemote->from_bin(buffer);
 }
 
 void ServerGameLogic(){
     Draw();
-    Input(true);
-    UpdatePacmanServer();
+    Input();
+    UpdatePacman();
     UpdateGhosts();
     CheckGameOver();
     usleep(200000);  // Retardo de 200 ms
@@ -447,27 +418,27 @@ void ServerGameLogic(){
 
 void ClientGameLogic(){
     Draw();
-    Input(false);
-    UpdatePacmanClient();
+    Input();
+    UpdatePacman();
     //UpdateGhosts();
     //CheckGameOver();
     usleep(200000);  // Retardo de 200 ms
 }
 
-void ServerReceiveMessages(int client_sd){
+void ReceiveMessagesFromClient(int sd){
     while(true){
-        char bufferClient[CLIENT_MESSAGE_SIZE];
-        ssize_t bytes =  recv(client_sd,bufferClient,CLIENT_MESSAGE_SIZE,0);
-        ProcessClientData(bufferClient, bytes);
+        char buffer[CLIENT_MESSAGE_SIZE];
+        ssize_t bytes =  recv(sd,buffer,CLIENT_MESSAGE_SIZE,0);
+        ProcessClientData(buffer, bytes);
     }
     
 }
 
-void ClientReceiveMessages(int sd){
+void ReceiveMessagesFromServer(int sd){
     while(true){
-        char bufferServer[SERVER_MESSAGE_SIZE];
-        ssize_t bytes = recv(sd,bufferServer,SERVER_MESSAGE_SIZE,0);
-        ProcessServerData(bufferServer,bytes);
+        char buffer[SERVER_MESSAGE_SIZE];
+        ssize_t bytes = recv(sd,buffer,SERVER_MESSAGE_SIZE,0);
+        ProcessServerData(buffer,bytes);
     }
 }
 
@@ -508,11 +479,14 @@ int main(int argc, char** argv)
         std::cout << "Conexión desde "<<host<<" "<<serv<<"\n";
         
         // Crear un hilo para recibir mensajes
-        std::thread receiveThread(ServerReceiveMessages, client_sd);
-        pacmanServer=new Player("PacmanServer",10,1);
-        pacmanServer->isServer=true;
-        pacmanClient=new Player("PacmanClient",13,1);
+        std::thread receiveThread(ReceiveMessagesFromClient, client_sd);
+
+        // Inicializar variables para servidor
+        pacmanLocal=new Player("PacmanServer",10,1);
+        pacmanLocal->isServer=true;
+        pacmanRemote=new Player("PacmanClient",13,1);
         Setup();
+
         while(true){
             /*char bufferClient[CLIENT_MESSAGE_SIZE];
             ssize_t bytes =  recv(client_sd,bufferClient,CLIENT_MESSAGE_SIZE,0);
@@ -520,10 +494,11 @@ int main(int argc, char** argv)
             // ejecutar juego para server
             ServerGameLogic();
             // mandar datos a cliente
-            char bufferServer[SERVER_MESSAGE_SIZE];
-            pacmanServer->to_bin();
-            memcpy(bufferServer,pacmanServer->data(),CLIENT_MESSAGE_SIZE);
-            send(client_sd,bufferServer,SERVER_MESSAGE_SIZE,0);
+            SendDataToClient(client_sd);
+            /*char bufferServer[LOCAL_MESSAGE_SIZE];
+            pacmanLocal->to_bin();
+            memcpy(bufferServer,pacmanLocal->data(),LOCAL_MESSAGE_SIZE);
+            send(client_sd,bufferServer,LOCAL_MESSAGE_SIZE,0);*/
         }
         receiveThread.join();
     }
@@ -555,17 +530,21 @@ int main(int argc, char** argv)
 
         
         // Crear un hilo para recibir mensajes
-        std::thread receiveThread(ClientReceiveMessages, sd);
-        pacmanClient=new Player("PacmanClient",13,1);
-        pacmanServer=new Player("PacmanServer",10,1);
+        std::thread receiveThread(ReceiveMessagesFromServer, sd);
+
+        // Inicializar variables para cliente
+        pacmanLocal=new Player("PacmanClient",13,1);
+        pacmanRemote=new Player("PacmanServer",10,1);
         Setup();
+
         while (true) {
             ClientGameLogic();
             // mandar datos al server
-            char bufferClient[CLIENT_MESSAGE_SIZE];
-            pacmanClient->to_bin();
-            memcpy(bufferClient,pacmanClient->data(),CLIENT_MESSAGE_SIZE);
-            send(sd,bufferClient,SERVER_MESSAGE_SIZE,0);
+            SendDataToServer(sd);
+            /*char bufferClient[LOCAL_MESSAGE_SIZE];
+            pacmanLocal->to_bin();
+            memcpy(bufferClient,pacmanLocal->data(),LOCAL_MESSAGE_SIZE);
+            send(sd,bufferClient,LOCAL_MESSAGE_SIZE,0);*/
         }
         receiveThread.join();
     }
@@ -574,8 +553,8 @@ int main(int argc, char** argv)
 
     while (!gameOver) {
         Draw();
-        Input(true);
-        UpdatePacmanServer();
+        Input();
+        UpdatePacman();
         UpdateGhosts();
         CheckGameOver();
         usleep(200000);  // Retardo de 200 ms

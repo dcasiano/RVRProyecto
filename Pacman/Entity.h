@@ -12,7 +12,7 @@
 class Entity: public Serializable
 {
 public:
-    Entity(const char * _n, int16_t _x, int16_t _y):x(_x),y(_y), isServer(false)
+    Entity(const char * _n, int16_t _x, int16_t _y):x(_x),y(_y), isAlive(true)
     {
         strncpy(name, _n, 80);
     };
@@ -21,6 +21,7 @@ public:
 
     void to_bin()
     {
+        //size_t size=2*sizeof(int16_t)+80+sizeof(bool);
         size_t size=2*sizeof(int16_t)+80;
         alloc_data(size);
         char *tmp = _data;
@@ -29,6 +30,8 @@ public:
         memcpy(tmp,&x,sizeof(int16_t));
         tmp+=sizeof(int16_t);
         memcpy(tmp,&y,sizeof(int16_t));
+        //tmp+=sizeof(int16_t);
+        //memcpy(tmp,&isAlive,sizeof(bool));
     }
 
     int from_bin(char * data)
@@ -39,6 +42,8 @@ public:
         memcpy(&x,tmp,sizeof(int16_t));
         tmp+=sizeof(int16_t);
         memcpy(&y,tmp,sizeof(int16_t));
+        //tmp+=sizeof(int16_t);
+        //memcpy(&isAlive,tmp,sizeof(bool));
         //
         return 0;
     }
@@ -53,5 +58,5 @@ public:
     enum Direction { STOP = 0, LEFT, RIGHT, UP, DOWN };
     Direction dir;
 
-    bool isServer;
+    bool isAlive;
 };

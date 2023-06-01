@@ -70,10 +70,10 @@ vector<Entity*>ghosts;
 /*enum GhostDirection { G_LEFT, G_RIGHT, G_UP, G_DOWN };
 vector<GhostDirection>ghostDir(numGhosts);*/
 
-// pos jugador server y 3 fantasmas + 80 caracteres por cada nombre + 1 bool clientAlive + 1 bool gameOver
-const size_t SERVER_MESSAGE_SIZE = 4*(2 * sizeof(int16_t) + 80) + 2*sizeof(bool); 
+// pos jugador server y 3 fantasmas + 80 caracteres por cada nombre
+const size_t SERVER_MESSAGE_SIZE = 4*(2 * sizeof(int16_t) + 80 + sizeof(bool)); 
 // pos jugador client + 80 caracteres por cada nombre
-const size_t CLIENT_MESSAGE_SIZE = 2 * sizeof(int16_t) + 80; 
+const size_t CLIENT_MESSAGE_SIZE = 2 * sizeof(int16_t) + 80+ sizeof(bool); 
 
 
 // Metodos
@@ -127,12 +127,12 @@ void Setup()
     ghostPos[5]=height-2;
     ghostDir[2]=G_UP;*/
 
-    ghosts.push_back(new Entity("Ghost1",1,1));
-    ghosts.push_back(new Entity("Ghost2",width-3,1));
+    ghosts.push_back(new Entity("Ghost1",1,3));
+    ghosts.push_back(new Entity("Ghost2",width-3,3));
     ghosts.push_back(new Entity("Ghost3",width-3,height-2));
     ghosts[0]->dir=Entity::Direction::DOWN;
     ghosts[1]->dir=Entity::Direction::DOWN;
-    ghosts[2]->dir=Entity::Direction::UP;
+    ghosts[2]->dir=Entity::Direction::LEFT;
 
     currentFood = 0;
 
@@ -161,17 +161,17 @@ void Draw()
 
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
-            if (pacmanLocal->isAlive && i == pacmanLocal->y && j == pacmanLocal->x){
+            if (i == pacmanLocal->y && j == pacmanLocal->x){
                 init_pair(1, COLOR_YELLOW, COLOR_BLACK);
                 attron(COLOR_PAIR(1));
-                mvprintw(i, j, "C");  // Dibujar el Pacman
+                if(pacmanLocal->isAlive)mvprintw(i, j, "C");  // Dibujar el Pacman
                 //mvaddch(i, j, 'C');
                 attroff(COLOR_PAIR(1));
             }
-            else if (pacmanRemote->isAlive && i == pacmanRemote->y && j == pacmanRemote->x){
+            else if (i == pacmanRemote->y && j == pacmanRemote->x){
                 init_pair(5, COLOR_MAGENTA, COLOR_BLACK);
                 attron(COLOR_PAIR(5));
-                mvprintw(i, j, "C");  // Dibujar el Pacman
+                if(pacmanRemote->isAlive)mvprintw(i, j, "C");  // Dibujar el Pacman
                 attroff(COLOR_PAIR(5));
             }
             else
@@ -195,7 +195,7 @@ void Draw()
     attroff(COLOR_PAIR(4));
 
 
-    mvprintw(height + 1, 0, "Use arrow buttons to move");
+    if(pacmanLocal->isAlive)mvprintw(height + 1, 0, "Use arrow buttons to move");
     mvprintw(height + 2, 0, "Press q to quit");
     refresh();
 }
@@ -386,9 +386,9 @@ void CheckGameOver()
         if (pacmanLocal->x == ghosts[i]->x && pacmanLocal->y == ghosts[i]->y){
             pacmanLocal->isAlive=false;
         }
-        if (pacmanRemote->x == ghosts[i]->x && pacmanRemote->y == ghosts[i]->y){
+        /*if (pacmanRemote->x == ghosts[i]->x && pacmanRemote->y == ghosts[i]->y){
             pacmanRemote->isAlive=false;
-        }
+        }*/
     }
     if(!pacmanLocal->isAlive&&!pacmanRemote->isAlive) gameOver=true;
     // Verificar si no queda comida
@@ -414,9 +414,6 @@ void SendDataToClient(int sd){
         ghosts[i]->to_bin();
         memcpy(buffer+(i+1)*CLIENT_MESSAGE_SIZE,ghosts[i]->data(),CLIENT_MESSAGE_SIZE);
     }
-    char aux[2*sizeof(bool)+1];
-    sprintf(aux, "%d%d", pacmanRemote->isAlive, gameOver);
-    memcpy(buffer +4*CLIENT_MESSAGE_SIZE,aux,2*sizeof(bool));
     send(sd,buffer,SERVER_MESSAGE_SIZE,0);
 }
 void SendDataToServer(int sd){
@@ -437,9 +434,6 @@ void ProcessServerData(char* buffer, ssize_t bytes){
     for(int i=0;i<numGhosts;i++){
         ghosts[i]->from_bin(buffer+(i+1)*CLIENT_MESSAGE_SIZE);
     }
-    int intAux1, intAux2;
-    sscanf(buffer+4*CLIENT_MESSAGE_SIZE, "%d%d", &intAux1, &intAux2);
-    pacmanLocal->isAlive=static_cast<bool>(intAux1);
     //gameOver=static_cast<bool>(intAux2);
     //cout<<gameOver<<"\n";
 }
@@ -458,7 +452,7 @@ void ClientGameLogic(){
     Input();
     UpdatePacman();
     //UpdateGhosts();
-    //CheckGameOver();
+    CheckGameOver();
     usleep(200000);  // Retardo de 200 ms
 }
 
@@ -522,7 +516,7 @@ int main(int argc, char** argv)
 
         // Inicializar variables para servidor
         pacmanLocal=new Entity("PacmanServer",10,1);
-        pacmanRemote=new Entity("PacmanClient",13,1);
+        pacmanRemote=new Entity("PacmanClient",12,1);
         Setup();
 
         while(!gameOver){
@@ -572,7 +566,7 @@ int main(int argc, char** argv)
         std::thread receiveThread(ReceiveMessagesFromServer, sd);
 
         // Inicializar variables para cliente
-        pacmanLocal=new Entity("PacmanClient",13,1);
+        pacmanLocal=new Entity("PacmanClient",12,1);
         pacmanRemote=new Entity("PacmanServer",10,1);
         Setup();
 
@@ -585,7 +579,6 @@ int main(int argc, char** argv)
             memcpy(bufferClient,pacmanLocal->data(),LOCAL_MESSAGE_SIZE);
             send(sd,bufferClient,LOCAL_MESSAGE_SIZE,0);*/
         }
-        cout<<"terminado";
         receiveThread.join();
         close(sd);
     }

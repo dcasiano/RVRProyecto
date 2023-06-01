@@ -21,8 +21,8 @@ public:
 
     void to_bin()
     {
-        //size_t size=2*sizeof(int16_t)+80+sizeof(bool);
-        size_t size=2*sizeof(int16_t)+80;
+        size_t size=2*sizeof(int16_t)+80+sizeof(bool);
+        //size_t size=2*sizeof(int16_t)+80;
         alloc_data(size);
         char *tmp = _data;
         memcpy(tmp,name,80);
@@ -30,8 +30,8 @@ public:
         memcpy(tmp,&x,sizeof(int16_t));
         tmp+=sizeof(int16_t);
         memcpy(tmp,&y,sizeof(int16_t));
-        //tmp+=sizeof(int16_t);
-        //memcpy(tmp,&isAlive,sizeof(bool));
+        tmp+=sizeof(int16_t);
+        memcpy(tmp,&isAlive,sizeof(bool));
     }
 
     int from_bin(char * data)
@@ -42,9 +42,9 @@ public:
         memcpy(&x,tmp,sizeof(int16_t));
         tmp+=sizeof(int16_t);
         memcpy(&y,tmp,sizeof(int16_t));
-        //tmp+=sizeof(int16_t);
-        //memcpy(&isAlive,tmp,sizeof(bool));
-        //
+        tmp+=sizeof(int16_t);
+        memcpy(&isAlive,tmp,sizeof(bool));
+        
         return 0;
     }
 

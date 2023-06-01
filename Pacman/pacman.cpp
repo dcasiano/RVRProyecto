@@ -19,24 +19,21 @@
 
 using namespace std;
 
+// Definicion de variables del juego
+
 // Dimensiones del tablero
 const int width = 20;
 const int height = 21;
 int currentFood;
 
-// Posición del Pacman
-//int pacX, pacY;
+// Los dos pacman
 Entity* pacmanLocal;
 Entity* pacmanRemote;
-
-// Dirección de movimiento del Pacman
-//enum Direction { STOP = 0, LEFT, RIGHT, UP, DOWN };
-//Direction dir;
 
 // Estado del juego
 bool gameOver;
 
-// Tablero con paredes
+// Tablero ('.' -> comida '#' -> pared)
 char board[height][width] = {
     {'#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#'},
     {'#', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '#'},
@@ -61,32 +58,18 @@ char board[height][width] = {
     {'#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#', '#'}
 };
 
-// Posición de los fantasmas
+// Fantasmas
 const int numGhosts=3;
-//vector<int>ghostPos(2*numGhosts);
 vector<Entity*>ghosts;
 
-// Dirección de movimiento de los fantasmas
-/*enum GhostDirection { G_LEFT, G_RIGHT, G_UP, G_DOWN };
-vector<GhostDirection>ghostDir(numGhosts);*/
-
+// Tamaño mensajes
 // pos jugador server y 3 fantasmas + 80 caracteres por cada nombre
 const size_t SERVER_MESSAGE_SIZE = 4*(2 * sizeof(int16_t) + 80 + sizeof(bool)); 
 // pos jugador client + 80 caracteres por cada nombre
-const size_t CLIENT_MESSAGE_SIZE = 2 * sizeof(int16_t) + 80+ sizeof(bool); 
+const size_t CLIENT_MESSAGE_SIZE = 2 * sizeof(int16_t) + 80 + sizeof(bool); 
 
 
 // Metodos
-
-/*void StartServer(const char * s, const char * p){
-    Socket socket(s,p);
-    socket.bind();
-}
-
-void StartClient(const char * s, const char * p){
-    Socket socket(s,p);
-    socket.bind();
-}*/
 
 // Inicialización
 void Setup()
@@ -94,38 +77,12 @@ void Setup()
     initscr();  // Inicializar ncurses
     clear();
     noecho();   // No mostrar las teclas pulsadas
-    cbreak();   // Deshabilitar el búfer de línea
+    cbreak();   // Para enviar las pulsaciones directamente, sin pulsar Enter
     keypad(stdscr, TRUE);  // Habilitar teclas especiales
     nodelay(stdscr, TRUE); // No esperar a la entrada del usuario
 
     gameOver = false;
-    //dir = STOP;
     pacmanLocal->dir=Entity::Direction::STOP;
-
-    // Encontrar la posición inicial del Pacman en el tablero
-    /*for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-            if (board[i][j] == 'C') {
-                y = i;
-                x = j;
-                break;
-            }
-        }
-    }*/
-    //pacX=10; pacY=1;
-
-    // Inicializar la posición y dirección de los fantasmas
-    /*ghostPos[0]=1;
-    ghostPos[1]=1;
-    ghostDir[0]=G_DOWN;
-
-    ghostPos[2]=width-3;
-    ghostPos[3]=1;
-    ghostDir[1]=G_DOWN;
-
-    ghostPos[4]=width-3;
-    ghostPos[5]=height-2;
-    ghostDir[2]=G_UP;*/
 
     ghosts.push_back(new Entity("Ghost1",1,3));
     ghosts.push_back(new Entity("Ghost2",width-3,3));
@@ -153,7 +110,7 @@ void FreeResources()
     endwin();  // Finalizar ncurses
 }
 
-// Dibujar el tablero y el Pacman
+// Dibujar el tablero, los Pacman y los fantasmmas
 void Draw()
 {
     clear();
@@ -165,7 +122,6 @@ void Draw()
                 init_pair(1, COLOR_YELLOW, COLOR_BLACK);
                 attron(COLOR_PAIR(1));
                 if(pacmanLocal->isAlive)mvprintw(i, j, "C");  // Dibujar el Pacman
-                //mvaddch(i, j, 'C');
                 attroff(COLOR_PAIR(1));
             }
             else if (i == pacmanRemote->y && j == pacmanRemote->x){
@@ -200,10 +156,9 @@ void Draw()
     refresh();
 }
 
-// Actualizar la posición de los fantasmas
+// Actualizar la posicion de los fantasmas
 void UpdateGhosts()
 {
-    // Fantasma 1
     std::vector<Entity::Direction> possible_dirs;
     for(int i=0;i<numGhosts;i++){
         int ghost_new_x = ghosts[i]->x;
@@ -258,7 +213,8 @@ void UpdateGhosts()
                     break;
             }
 
-        // Si hay direcciones disponibles, generar una dirección aleatoria entre las posibles
+        // Si hay direcciones disponibles, generar una direccion aleatoria entre las posibles
+        // (podria ser seguir en linea recta)
         if (!possible_dirs.empty()) {
             int random_index = rand() % possible_dirs.size();
             Entity::Direction new_dir = possible_dirs[random_index];
@@ -281,6 +237,7 @@ void UpdateGhosts()
             }
             ghosts[i]->dir=new_dir;
         }
+        // Si no las hay, se da media vuelta
         else{
             switch (ghosts[i]->dir) {
                 case Entity::Direction::LEFT:
@@ -336,7 +293,7 @@ void Input()
     }
 }
 
-// Actualizar la posición del Pacman
+// Actualizar la posicion del pacman
 void UpdatePacman()
 {
     int nextX = pacmanLocal->x;
@@ -359,7 +316,7 @@ void UpdatePacman()
             break;
     }
 
-    // Verificar si la siguiente posición es un camino despejado
+    // Verificar si la siguiente posicion es un camino despejado
     if (board[nextY][nextX] != '#') {
         pacmanLocal->x = nextX;
         pacmanLocal->y = nextY;
@@ -378,36 +335,31 @@ void UpdatePacman()
 }
 
 
-// Verificar si se ha alcanzado una condición de finalización del juego
+// Verificar si se ha producido una condicion de gameover
 void CheckGameOver()
 {
     // Verificar si el Pacman ha sido atrapado por un fantasma
     for(int i=0;i<numGhosts;i++){
         if (pacmanLocal->x == ghosts[i]->x && pacmanLocal->y == ghosts[i]->y){
             pacmanLocal->isAlive=false;
+            pacmanLocal->dir=Entity::Direction::STOP;
         }
-        /*if (pacmanRemote->x == ghosts[i]->x && pacmanRemote->y == ghosts[i]->y){
-            pacmanRemote->isAlive=false;
-        }*/
     }
+    // Si estan los dos pacman muertos e acaba la partida
     if(!pacmanLocal->isAlive&&!pacmanRemote->isAlive) gameOver=true;
-    // Verificar si no queda comida
+    // Si no queda comida se acaba la partida
     if(currentFood<=0)gameOver=true;
 }
 
-/*void PrepareClientData(char* &buffer){
-    pacmanLocal->to_bin();
-    memcpy(buffer,pacmanLocal->data(),REMOTE_MESSAGE_SIZE);
-}
-void PrepareServerData(char* &buffer){
-    pacmanLocal->to_bin();
-    memcpy(buffer,pacmanLocal->data(),REMOTE_MESSAGE_SIZE);
-}*/
 
+// Metodos para enviar y recibir mensajes para el juego online
+
+// Envia al cliente los datos del pacman del servidor y de los fantasmas
 void SendDataToClient(int sd){
     char buffer[SERVER_MESSAGE_SIZE];
     pacmanLocal->to_bin();
-    // se utiliza CLIENT_MESSAGE_SIZE porque es lo que ocupa los datos
+
+    // se utiliza CLIENT_MESSAGE_SIZE porque es lo que ocupan los datos
     // de una entidad, de manera que se pueda separar los datos de cada una
     memcpy(buffer,pacmanLocal->data(),CLIENT_MESSAGE_SIZE);
     for(int i=0;i<numGhosts;i++){
@@ -416,26 +368,25 @@ void SendDataToClient(int sd){
     }
     send(sd,buffer,SERVER_MESSAGE_SIZE,0);
 }
+// Envia al server los datos del pacman del cliente
 void SendDataToServer(int sd){
     char buffer[CLIENT_MESSAGE_SIZE];
     pacmanLocal->to_bin();
     memcpy(buffer,pacmanLocal->data(),CLIENT_MESSAGE_SIZE);
     send(sd,buffer,CLIENT_MESSAGE_SIZE,0);
 }
-// Procesa los datos en el servidor recibidos por el cliente
+// El servidor procesa los datos recibidos del cliente
 void ProcessClientData(char* buffer, ssize_t bytes){
     if(bytes<=0)return;
     pacmanRemote->from_bin(buffer);
 }
-// Procesa los datos en el cliente recibidos por el servidor
+// El cliente procesa los datos recibidos del servidor
 void ProcessServerData(char* buffer, ssize_t bytes){
     if(bytes<=0)return;
     pacmanRemote->from_bin(buffer);
     for(int i=0;i<numGhosts;i++){
         ghosts[i]->from_bin(buffer+(i+1)*CLIENT_MESSAGE_SIZE);
     }
-    //gameOver=static_cast<bool>(intAux2);
-    //cout<<gameOver<<"\n";
 }
 
 void ServerGameLogic(){
@@ -444,48 +395,48 @@ void ServerGameLogic(){
     UpdatePacman();
     UpdateGhosts();
     CheckGameOver();
-    usleep(200000);  // Retardo de 200 ms
+    usleep(200000);  // Delay de 200 ms
 }
 
 void ClientGameLogic(){
     Draw();
     Input();
     UpdatePacman();
-    //UpdateGhosts();
     CheckGameOver();
-    usleep(200000);  // Retardo de 200 ms
+    usleep(200000);  // Delay de 200 ms
 }
 
+// Metodo que se ejecuta en un hilo diferente al programa
+// Dedicado a recibir mensajes del cliente
 void ReceiveMessagesFromClient(int sd){
     while(true){
         char buffer[CLIENT_MESSAGE_SIZE];
         ssize_t bytes =  recv(sd,buffer,CLIENT_MESSAGE_SIZE,0);
-        if(bytes==0)break;
+        if(bytes<=0)break;
         ProcessClientData(buffer, bytes);
     }
     close(sd);
 }
 
+// Metodo que se ejecuta en un hilo diferente al programa
+// Dedicado a recibir mensajes del server
 void ReceiveMessagesFromServer(int sd){
     while(true){
         char buffer[SERVER_MESSAGE_SIZE];
         ssize_t bytes = recv(sd,buffer,SERVER_MESSAGE_SIZE,0);
-        if(bytes==0)break;
+        if(bytes<=0)break;
         ProcessServerData(buffer,bytes);
     }
 }
 
 int main(int argc, char** argv)
 {
-    
-    
-    if (argc >= 4 && strcmp(argv[1], "s") == 0) { // si es el server
-        //StartServer(argv[2],argv[3]);
+    if (argc >= 4 && strcmp(argv[1], "s") == 0) { // Si es el server
 
         struct addrinfo hints;
         struct addrinfo *result;
 
-        memset(&hints,0,sizeof(struct addrinfo)); // inicializa a 0 hints
+        memset(&hints,0,sizeof(struct addrinfo));
 
         hints.ai_flags=AI_PASSIVE;
         hints.ai_family=AF_INET; // ipv4
@@ -520,23 +471,15 @@ int main(int argc, char** argv)
         Setup();
 
         while(!gameOver){
-            /*char bufferClient[CLIENT_MESSAGE_SIZE];
-            ssize_t bytes =  recv(client_sd,bufferClient,CLIENT_MESSAGE_SIZE,0);
-            ProcessClientData(bufferClient, bytes);*/
-            // ejecutar juego para server
+            // Ejecutar la logica del juego del servidor
             ServerGameLogic();
-            // mandar datos a cliente
+            // Mandar datos a cliente
             SendDataToClient(client_sd);
-            /*char bufferServer[LOCAL_MESSAGE_SIZE];
-            pacmanLocal->to_bin();
-            memcpy(bufferServer,pacmanLocal->data(),LOCAL_MESSAGE_SIZE);
-            send(client_sd,bufferServer,LOCAL_MESSAGE_SIZE,0);*/
         }
         receiveThread.join();
         close(sd);
     }
-    else if(argc >= 4 && strcmp(argv[1], "c") == 0){ //si es el client
-        //StartClient(argv[2],argv[3]);
+    else if(argc >= 4 && strcmp(argv[1], "c") == 0){ // Si es el client
 
         const std::string ip = argv[2];
         const int port = std::stoi(argv[3]);
@@ -561,7 +504,6 @@ int main(int argc, char** argv)
 
         std::cout << "Conectado al servidor." << std::endl;
 
-        
         // Crear un hilo para recibir mensajes
         std::thread receiveThread(ReceiveMessagesFromServer, sd);
 
@@ -571,13 +513,10 @@ int main(int argc, char** argv)
         Setup();
 
         while (!gameOver) {
+            // Ejecutar la logica del cliente
             ClientGameLogic();
-            // mandar datos al server
+            // Mandar datos al server
             SendDataToServer(sd);
-            /*char bufferClient[LOCAL_MESSAGE_SIZE];
-            pacmanLocal->to_bin();
-            memcpy(bufferClient,pacmanLocal->data(),LOCAL_MESSAGE_SIZE);
-            send(sd,bufferClient,LOCAL_MESSAGE_SIZE,0);*/
         }
         receiveThread.join();
         close(sd);

@@ -2,7 +2,7 @@ CC = g++
 CFLAGS = -Wall -Wextra -pedantic -std=c++11
 LDFLAGS = -lncurses
 
-SRCS = pacman.cpp Socket.cpp
+SRCS = pacman.cpp
 OBJS = $(SRCS:.cpp=.o)
 EXEC = pacman
 

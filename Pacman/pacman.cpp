@@ -6,9 +6,16 @@
 #include <thread>
 //#include <atomic>
 
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netdb.h>
 
-#include "Player.h"
-#include "Socket.h"
+#include <stdexcept>
+
+#include <ostream>
+
+#include "Entity.h"
+//#include "Socket.h"
 
 using namespace std;
 
@@ -19,8 +26,8 @@ int currentFood;
 
 // Posición del Pacman
 //int pacX, pacY;
-Player* pacmanLocal;
-Player* pacmanRemote;
+Entity* pacmanLocal;
+Entity* pacmanRemote;
 
 // Dirección de movimiento del Pacman
 //enum Direction { STOP = 0, LEFT, RIGHT, UP, DOWN };
@@ -56,20 +63,21 @@ char board[height][width] = {
 
 // Posición de los fantasmas
 const int numGhosts=3;
-vector<int>ghostPos(2*numGhosts);
+//vector<int>ghostPos(2*numGhosts);
+vector<Entity*>ghosts;
 
 // Dirección de movimiento de los fantasmas
-enum GhostDirection { G_LEFT, G_RIGHT, G_UP, G_DOWN };
-vector<GhostDirection>ghostDir(numGhosts);
+/*enum GhostDirection { G_LEFT, G_RIGHT, G_UP, G_DOWN };
+vector<GhostDirection>ghostDir(numGhosts);*/
 
 // TODO cambiar a SERVER_MESSAGE_SIZE = 8 * sizeof(int16_t) + 80; para incluir fantasmas
-const size_t SERVER_MESSAGE_SIZE = 8 * sizeof(int16_t) + 80; // pos jugador server y 3 fantasmas + 80 caracteres de nombre
-const size_t CLIENT_MESSAGE_SIZE = 2 * sizeof(int16_t) + 80; // pos jugador client + 80 caracteres de nombre
+const size_t SERVER_MESSAGE_SIZE = 4*(2 * sizeof(int16_t) + 80); // pos jugador server y 3 fantasmas + 80 caracteres por cada nombre
+const size_t CLIENT_MESSAGE_SIZE = 2 * sizeof(int16_t) + 80; // pos jugador client + 80 caracteres por cada nombre
 
 
 // Metodos
 
-void StartServer(const char * s, const char * p){
+/*void StartServer(const char * s, const char * p){
     Socket socket(s,p);
     socket.bind();
 }
@@ -77,7 +85,7 @@ void StartServer(const char * s, const char * p){
 void StartClient(const char * s, const char * p){
     Socket socket(s,p);
     socket.bind();
-}
+}*/
 
 // Inicialización
 void Setup()
@@ -91,7 +99,7 @@ void Setup()
 
     gameOver = false;
     //dir = STOP;
-    pacmanLocal->dir=Player::Direction::STOP;
+    pacmanLocal->dir=Entity::Direction::STOP;
 
     // Encontrar la posición inicial del Pacman en el tablero
     /*for (int i = 0; i < height; i++) {
@@ -106,7 +114,7 @@ void Setup()
     //pacX=10; pacY=1;
 
     // Inicializar la posición y dirección de los fantasmas
-    ghostPos[0]=1;
+    /*ghostPos[0]=1;
     ghostPos[1]=1;
     ghostDir[0]=G_DOWN;
 
@@ -116,7 +124,14 @@ void Setup()
 
     ghostPos[4]=width-3;
     ghostPos[5]=height-2;
-    ghostDir[2]=G_UP;
+    ghostDir[2]=G_UP;*/
+
+    ghosts.push_back(new Entity("Ghost1",1,1));
+    ghosts.push_back(new Entity("Ghost2",width-3,1));
+    ghosts.push_back(new Entity("Ghost3",width-3,height-2));
+    ghosts[0]->dir=Entity::Direction::DOWN;
+    ghosts[1]->dir=Entity::Direction::DOWN;
+    ghosts[2]->dir=Entity::Direction::UP;
 
     currentFood = 0;
 
@@ -165,17 +180,17 @@ void Draw()
     // Dibujar a los fantasmas
     init_pair(2, COLOR_RED, COLOR_BLACK);
     attron(COLOR_PAIR(2));
-    mvprintw(ghostPos[1], ghostPos[0], "G");
+    mvprintw(ghosts[0]->y, ghosts[0]->x, "X");
     attroff(COLOR_PAIR(2));
 
     init_pair(3, COLOR_BLUE, COLOR_BLACK);
     attron(COLOR_PAIR(3));
-    mvprintw(ghostPos[3], ghostPos[2], "G");
+    mvprintw(ghosts[1]->y, ghosts[1]->x, "X");
     attroff(COLOR_PAIR(3));
 
     init_pair(4, COLOR_GREEN, COLOR_BLACK);
     attron(COLOR_PAIR(4));
-    mvprintw(ghostPos[5], ghostPos[4], "G");
+    mvprintw(ghosts[2]->y, ghosts[2]->x, "X");
     attroff(COLOR_PAIR(4));
 
 
@@ -188,54 +203,54 @@ void Draw()
 void UpdateGhosts()
 {
     // Fantasma 1
-    std::vector<GhostDirection> possible_dirs;
+    std::vector<Entity::Direction> possible_dirs;
     for(int i=0;i<numGhosts;i++){
-        int ghost1_new_x = ghostPos[2*i];
-        int ghost1_new_y = ghostPos[2*i+1];
+        int ghost_new_x = ghosts[i]->x;
+        int ghost_new_y = ghosts[i]->y;
 
-        switch (ghostDir[i]) {
-                case G_LEFT:
-                    if (board[ghost1_new_y][ghost1_new_x - 1] != '#') {
-                        possible_dirs.push_back(G_LEFT);
+        switch (ghosts[i]->dir) {
+                case Entity::Direction::LEFT:
+                    if (board[ghost_new_y][ghost_new_x - 1] != '#') {
+                        possible_dirs.push_back(Entity::Direction::LEFT);
                     }
-                    if (board[ghost1_new_y - 1][ghost1_new_x] != '#') {
-                        possible_dirs.push_back(G_UP);
+                    if (board[ghost_new_y - 1][ghost_new_x] != '#') {
+                        possible_dirs.push_back(Entity::Direction::UP);
                     }
-                    if (board[ghost1_new_y + 1][ghost1_new_x] != '#') {
-                        possible_dirs.push_back(G_DOWN);
+                    if (board[ghost_new_y + 1][ghost_new_x] != '#') {
+                        possible_dirs.push_back(Entity::Direction::DOWN);
                     }
                     break;
-                case G_RIGHT:
-                    if (board[ghost1_new_y][ghost1_new_x + 1] != '#') {
-                        possible_dirs.push_back(G_RIGHT);
+                case Entity::Direction::RIGHT:
+                    if (board[ghost_new_y][ghost_new_x + 1] != '#') {
+                        possible_dirs.push_back(Entity::Direction::RIGHT);
                     }  
-                    if (board[ghost1_new_y - 1][ghost1_new_x] != '#') {
-                        possible_dirs.push_back(G_UP);
+                    if (board[ghost_new_y - 1][ghost_new_x] != '#') {
+                        possible_dirs.push_back(Entity::Direction::UP);
                     }
-                    if (board[ghost1_new_y + 1][ghost1_new_x] != '#') {
-                        possible_dirs.push_back(G_DOWN);
-                    }
-                    break;
-                case G_UP:
-                    if (board[ghost1_new_y - 1][ghost1_new_x] != '#') {
-                        possible_dirs.push_back(G_UP);
-                    }
-                    if (board[ghost1_new_y][ghost1_new_x - 1] != '#') {
-                        possible_dirs.push_back(G_LEFT);
-                    }
-                    if (board[ghost1_new_y][ghost1_new_x + 1] != '#') {
-                        possible_dirs.push_back(G_RIGHT);
+                    if (board[ghost_new_y + 1][ghost_new_x] != '#') {
+                        possible_dirs.push_back(Entity::Direction::DOWN);
                     }
                     break;
-                case G_DOWN:
-                    if (board[ghost1_new_y + 1][ghost1_new_x] != '#') {
-                        possible_dirs.push_back(G_DOWN);
+                case Entity::Direction::UP:
+                    if (board[ghost_new_y - 1][ghost_new_x] != '#') {
+                        possible_dirs.push_back(Entity::Direction::UP);
                     }
-                    if (board[ghost1_new_y][ghost1_new_x - 1] != '#') {
-                        possible_dirs.push_back(G_LEFT);
+                    if (board[ghost_new_y][ghost_new_x - 1] != '#') {
+                        possible_dirs.push_back(Entity::Direction::LEFT);
                     }
-                    if (board[ghost1_new_y][ghost1_new_x + 1] != '#') {
-                        possible_dirs.push_back(G_RIGHT);
+                    if (board[ghost_new_y][ghost_new_x + 1] != '#') {
+                        possible_dirs.push_back(Entity::Direction::RIGHT);
+                    }
+                    break;
+                case Entity::Direction::DOWN:
+                    if (board[ghost_new_y + 1][ghost_new_x] != '#') {
+                        possible_dirs.push_back(Entity::Direction::DOWN);
+                    }
+                    if (board[ghost_new_y][ghost_new_x - 1] != '#') {
+                        possible_dirs.push_back(Entity::Direction::LEFT);
+                    }
+                    if (board[ghost_new_y][ghost_new_x + 1] != '#') {
+                        possible_dirs.push_back(Entity::Direction::RIGHT);
                     }
                     break;
                 default:
@@ -245,51 +260,51 @@ void UpdateGhosts()
         // Si hay direcciones disponibles, generar una dirección aleatoria entre las posibles
         if (!possible_dirs.empty()) {
             int random_index = rand() % possible_dirs.size();
-            GhostDirection new_dir = possible_dirs[random_index];
+            Entity::Direction new_dir = possible_dirs[random_index];
 
             switch (new_dir) {
-                case G_LEFT:
-                    ghost1_new_x--;
+                case Entity::Direction::LEFT:
+                    ghost_new_x--;
                     break;
-                case G_RIGHT:
-                    ghost1_new_x++;
+                case Entity::Direction::RIGHT:
+                    ghost_new_x++;
                     break;
-                case G_UP:
-                    ghost1_new_y--;
+                case Entity::Direction::UP:
+                    ghost_new_y--;
                     break;
-                case G_DOWN:
-                    ghost1_new_y++;
+                case Entity::Direction::DOWN:
+                    ghost_new_y++;
                     break;
                 default:
                     break;
             }
-            ghostDir[i]=new_dir;
+            ghosts[i]->dir=new_dir;
         }
         else{
-            switch (ghostDir[i]) {
-                case G_LEFT:
-                    ghost1_new_x++;
-                    ghostDir[i]=G_RIGHT;
+            switch (ghosts[i]->dir) {
+                case Entity::Direction::LEFT:
+                    ghost_new_x++;
+                    ghosts[i]->dir=Entity::Direction::RIGHT;
                     break;
-                case G_RIGHT:
-                    ghost1_new_x--;
-                    ghostDir[i]=G_LEFT;
+                case Entity::Direction::RIGHT:
+                    ghost_new_x--;
+                    ghosts[i]->dir=Entity::Direction::LEFT;
                     break;
-                case G_UP:
-                    ghost1_new_y++;
-                    ghostDir[i]=G_DOWN;
+                case Entity::Direction::UP:
+                    ghost_new_y++;
+                    ghosts[i]->dir=Entity::Direction::DOWN;
                     break;
-                case G_DOWN:
-                    ghost1_new_y--;
-                    ghostDir[i]=G_UP;
+                case Entity::Direction::DOWN:
+                    ghost_new_y--;
+                    ghosts[i]->dir=Entity::Direction::UP;
                     break;
                 default:
                     break;
             }
         }
 
-        ghostPos[2*i] = ghost1_new_x;
-        ghostPos[2*i+1] = ghost1_new_y;
+        ghosts[i]->x = ghost_new_x;
+        ghosts[i]->y = ghost_new_y;
         possible_dirs.clear();
     }
 }
@@ -300,16 +315,16 @@ void Input()
     int key = getch();
     switch (key) {
         case KEY_LEFT:
-            pacmanLocal->dir = Player::Direction::LEFT;
+            pacmanLocal->dir = Entity::Direction::LEFT;
             break;
         case KEY_RIGHT:
-            pacmanLocal->dir = Player::Direction::RIGHT;
+            pacmanLocal->dir = Entity::Direction::RIGHT;
             break;
         case KEY_UP:
-            pacmanLocal->dir = Player::Direction::UP;
+            pacmanLocal->dir = Entity::Direction::UP;
             break;
         case KEY_DOWN:
-            pacmanLocal->dir = Player::Direction::DOWN;
+            pacmanLocal->dir = Entity::Direction::DOWN;
             break;
         case 'q':
             gameOver = true;
@@ -326,16 +341,16 @@ void UpdatePacman()
     int nextY = pacmanLocal->y;
 
     switch (pacmanLocal->dir) {
-        case Player::Direction::LEFT:
+        case Entity::Direction::LEFT:
             nextX = pacmanLocal->x - 1;
             break;
-        case Player::Direction::RIGHT:
+        case Entity::Direction::RIGHT:
             nextX = pacmanLocal->x + 1;
             break;
-        case Player::Direction::UP:
+        case Entity::Direction::UP:
             nextY = pacmanLocal->y - 1;
             break;
-        case Player::Direction::DOWN:
+        case Entity::Direction::DOWN:
             nextY = pacmanLocal->y + 1;
             break;
         default:
@@ -366,7 +381,7 @@ void CheckGameOver()
 {
     // Verificar si el Pacman ha sido atrapado por un fantasma
     for(int i=0;i<numGhosts;i++){
-        if (pacmanLocal->x == ghostPos[2*i] && pacmanLocal->y == ghostPos[2*i+1]){
+        if (pacmanLocal->x == ghosts[i]->x && pacmanLocal->y == ghosts[i]->y){
             //gameOver=true;
             break;
         }
@@ -387,7 +402,13 @@ void PrepareServerData(char* &buffer){
 void SendDataToClient(int sd){
     char buffer[SERVER_MESSAGE_SIZE];
     pacmanLocal->to_bin();
-    memcpy(buffer,pacmanLocal->data(),SERVER_MESSAGE_SIZE);
+    // se utiliza CLIENT_MESSAGE_SIZE porque es lo que ocupa los datos
+    // de una entidad, de manera que se pueda separar los datos de cada una
+    memcpy(buffer,pacmanLocal->data(),CLIENT_MESSAGE_SIZE);
+    for(int i=0;i<numGhosts;i++){
+        ghosts[i]->to_bin();
+        memcpy(buffer+(i+1)*CLIENT_MESSAGE_SIZE,ghosts[i]->data(),CLIENT_MESSAGE_SIZE);
+    }
     send(sd,buffer,SERVER_MESSAGE_SIZE,0);
 }
 void SendDataToServer(int sd){
@@ -405,6 +426,9 @@ void ProcessClientData(char* buffer, ssize_t bytes){
 void ProcessServerData(char* buffer, ssize_t bytes){
     if(bytes<=0)return;
     pacmanRemote->from_bin(buffer);
+    for(int i=0;i<numGhosts;i++){
+        ghosts[i]->from_bin(buffer+(i+1)*CLIENT_MESSAGE_SIZE);
+    }
 }
 
 void ServerGameLogic(){
@@ -482,9 +506,9 @@ int main(int argc, char** argv)
         std::thread receiveThread(ReceiveMessagesFromClient, client_sd);
 
         // Inicializar variables para servidor
-        pacmanLocal=new Player("PacmanServer",10,1);
+        pacmanLocal=new Entity("PacmanServer",10,1);
         pacmanLocal->isServer=true;
-        pacmanRemote=new Player("PacmanClient",13,1);
+        pacmanRemote=new Entity("PacmanClient",13,1);
         Setup();
 
         while(true){
@@ -533,8 +557,8 @@ int main(int argc, char** argv)
         std::thread receiveThread(ReceiveMessagesFromServer, sd);
 
         // Inicializar variables para cliente
-        pacmanLocal=new Player("PacmanClient",13,1);
-        pacmanRemote=new Player("PacmanServer",10,1);
+        pacmanLocal=new Entity("PacmanClient",13,1);
+        pacmanRemote=new Entity("PacmanServer",10,1);
         Setup();
 
         while (true) {

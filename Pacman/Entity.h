@@ -9,15 +9,15 @@
 #include <string.h>
 //#include <unistd.h>
 
-class Player: public Serializable
+class Entity: public Serializable
 {
 public:
-    Player(const char * _n, int16_t _x, int16_t _y):x(_x),y(_y), isServer(false)
+    Entity(const char * _n, int16_t _x, int16_t _y):x(_x),y(_y), isServer(false)
     {
         strncpy(name, _n, 80);
     };
 
-    virtual ~Player(){};
+    virtual ~Entity(){};
 
     void to_bin()
     {

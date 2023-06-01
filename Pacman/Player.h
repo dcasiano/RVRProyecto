@@ -12,7 +12,7 @@
 class Player: public Serializable
 {
 public:
-    Player(const char * _n, int16_t _x, int16_t _y):x(_x),y(_y)
+    Player(const char * _n, int16_t _x, int16_t _y):x(_x),y(_y), isServer(false)
     {
         strncpy(name, _n, 80);
     };
@@ -52,4 +52,6 @@ public:
 
     enum Direction { STOP = 0, LEFT, RIGHT, UP, DOWN };
     Direction dir;
+
+    bool isServer;
 };

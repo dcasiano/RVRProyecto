@@ -4,7 +4,6 @@
 #include <vector>
 #include <arpa/inet.h>
 #include <thread>
-//#include <atomic>
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -15,7 +14,6 @@
 #include <ostream>
 
 #include "Entity.h"
-//#include "Socket.h"
 
 using namespace std;
 
@@ -63,9 +61,9 @@ const int numGhosts=3;
 vector<Entity*>ghosts;
 
 // Tamaño mensajes
-// pos jugador server y 3 fantasmas + 80 caracteres por cada nombre
+// pos jugador server y 3 fantasmas + 80 caracteres por cada nombre + variable isAlive
 const size_t SERVER_MESSAGE_SIZE = 4*(2 * sizeof(int16_t) + 80 + sizeof(bool)); 
-// pos jugador client + 80 caracteres por cada nombre
+// pos jugador client + 80 caracteres del nombre + variable isAlive
 const size_t CLIENT_MESSAGE_SIZE = 2 * sizeof(int16_t) + 80 + sizeof(bool); 
 
 
@@ -107,6 +105,7 @@ void Setup()
 // Liberar recursos al finalizar
 void FreeResources()
 {
+    clear();
     endwin();  // Finalizar ncurses
 }
 
@@ -150,9 +149,9 @@ void Draw()
     mvprintw(ghosts[2]->y, ghosts[2]->x, "X");
     attroff(COLOR_PAIR(4));
 
-
-    if(pacmanLocal->isAlive)mvprintw(height + 1, 0, "Use arrow buttons to move");
-    mvprintw(height + 2, 0, "Press q to quit");
+    const char* name = pacmanLocal->name;
+    mvprintw(height + 1, 0, "%s", name);
+    mvprintw(height + 2, 0, "Use arrow buttons to move");
     refresh();
 }
 
@@ -345,7 +344,7 @@ void CheckGameOver()
             pacmanLocal->dir=Entity::Direction::STOP;
         }
     }
-    // Si estan los dos pacman muertos e acaba la partida
+    // Si estan los dos pacman muertos se acaba la partida
     if(!pacmanLocal->isAlive&&!pacmanRemote->isAlive) gameOver=true;
     // Si no queda comida se acaba la partida
     if(currentFood<=0)gameOver=true;
@@ -409,7 +408,7 @@ void ClientGameLogic(){
 // Metodo que se ejecuta en un hilo diferente al programa
 // Dedicado a recibir mensajes del cliente
 void ReceiveMessagesFromClient(int sd){
-    while(true){
+    while(!gameOver){
         char buffer[CLIENT_MESSAGE_SIZE];
         ssize_t bytes =  recv(sd,buffer,CLIENT_MESSAGE_SIZE,0);
         if(bytes<=0)break;
@@ -421,7 +420,7 @@ void ReceiveMessagesFromClient(int sd){
 // Metodo que se ejecuta en un hilo diferente al programa
 // Dedicado a recibir mensajes del server
 void ReceiveMessagesFromServer(int sd){
-    while(true){
+    while(!gameOver){
         char buffer[SERVER_MESSAGE_SIZE];
         ssize_t bytes = recv(sd,buffer,SERVER_MESSAGE_SIZE,0);
         if(bytes<=0)break;
@@ -438,26 +437,34 @@ int main(int argc, char** argv)
 
         memset(&hints,0,sizeof(struct addrinfo));
 
+        // Se establecen algunos criterios de busqueda
         hints.ai_flags=AI_PASSIVE;
         hints.ai_family=AF_INET; // ipv4
         hints.ai_socktype=SOCK_STREAM;
 
-        int rc = getaddrinfo(argv[2],argv[3],&hints,&result);
+        int rc = getaddrinfo(argv[2],argv[3],&hints,&result); // Devuelve la direccion de red
 
         if(rc!=0){
             std::cerr<<"[addrinfo]: "<<gai_strerror(rc)<<"\n";
             return -1;
         }
 
+        // Se crea el socket del tipo especificado
         int sd=socket(result->ai_family,result->ai_socktype,result->ai_protocol);
 
+        // Se asocia la direccion al socket
         rc=bind(sd,result->ai_addr,result->ai_addrlen);
+
+        // Se pone el socket en estado listen
         listen(sd,5);
 
         char host[NI_MAXHOST];
         char serv[NI_MAXSERV];
         struct sockaddr_storage client;
         socklen_t client_len=sizeof(struct sockaddr_storage);
+
+        // Se acepta la conexion. Devuelve un socket nuevo referente a la conexion establecida
+        // Esta llamada es bloqueante
         int client_sd = accept(sd,(struct sockaddr*)&client,&client_len);
         getnameinfo((struct sockaddr *) &client,client_len,host,NI_MAXHOST,serv,NI_MAXSERV,NI_NUMERICHOST|NI_NUMERICSERV);
         std::cout << "Conexión desde "<<host<<" "<<serv<<"\n";
@@ -490,7 +497,7 @@ int main(int argc, char** argv)
             std::cerr<<"No se pudo crear el socket\n";
         }
 
-        // Especificar la dirección del servidor
+        // Especificar la direccion del servidor
         sockaddr_in serv_addr;
         memset(&serv_addr, 0, sizeof(serv_addr));
         serv_addr.sin_family = AF_INET;

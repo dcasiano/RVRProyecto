@@ -1,13 +1,6 @@
 #include "Serializable.h"
 
-//#include <iostream>
-//#include <string>
-
-//#include <sys/types.h>
-//#include <sys/stat.h>
-//#include <fcntl.h>
 #include <string.h>
-//#include <unistd.h>
 
 class Entity: public Serializable
 {
@@ -22,7 +15,6 @@ public:
     void to_bin()
     {
         size_t size=2*sizeof(int16_t)+80+sizeof(bool);
-        //size_t size=2*sizeof(int16_t)+80;
         alloc_data(size);
         char *tmp = _data;
         memcpy(tmp,name,80);
